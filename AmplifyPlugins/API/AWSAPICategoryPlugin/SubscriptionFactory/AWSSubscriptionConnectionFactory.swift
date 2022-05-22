@@ -25,29 +25,50 @@ class AWSSubscriptionConnectionFactory: SubscriptionConnectionFactory {
     func getOrCreateConnection(for endpointConfig: AWSAPICategoryPluginConfiguration.EndpointConfig,
                                authService: AWSAuthServiceBehavior,
                                authType: AWSAuthorizationType? = nil,
-                               apiAuthProviderFactory: APIAuthProviderFactory) throws -> SubscriptionConnection {
+                               apiAuthProviderFactory: APIAuthProviderFactory,
+                               completionHandler: @escaping (SubscriptionConnection) -> Void) throws {
         return try concurrencyQueue.sync {
             let apiName = endpointConfig.name
-
+            
             let url = endpointConfig.baseURL
-
-            let authInterceptor = try getInterceptor(for: getOrCreateAuthConfiguration(from: endpointConfig,
-                                                                                       authType: authType),
-                                                     authService: authService,
-                                                     apiAuthProviderFactory: apiAuthProviderFactory)
-
+            
+            let authInterceptor = try getInterceptor(
+                for: getOrCreateAuthConfiguration(from: endpointConfig, authType: authType),
+                authService: authService,
+                apiAuthProviderFactory: apiAuthProviderFactory
+            )
+            
             // create or retrieve the connection provider. If creating, add interceptors onto the provider.
-            let connectionProvider = apiToConnectionProvider[MapperCacheKey(apiName: apiName, authType: authType)] ??
+            if let connectionProvider = apiToConnectionProvider[MapperCacheKey(apiName: apiName, authType: authType)] {
+                storeAndReturnConnection(apiName: apiName,
+                                         authType: authType,
+                                         connectionProvider: connectionProvider,
+                                         completionHandler: completionHandler)
+            } else {
                 ConnectionProviderFactory.createConnectionProviderAsync(for: url,
                                                                         authInterceptor: authInterceptor,
-                                                                        connectionType: .appSyncRealtime)
-
-            // store the connection provider for this api
-            apiToConnectionProvider[MapperCacheKey(apiName: apiName, authType: authType)] = connectionProvider
-
-            // create a subscription connection for subscribing and unsubscribing on the connection provider
-            return AppSyncSubscriptionConnection(provider: connectionProvider)
+                                                                        connectionType: .appSyncRealtime
+                ) { [weak self] connectionProvider in
+                    self?.storeAndReturnConnection(apiName: apiName,
+                                                   authType: authType,
+                                                   connectionProvider: connectionProvider,
+                                                   completionHandler: completionHandler)
+                }
+            }
         }
+    }
+    
+    private func storeAndReturnConnection(apiName: String,
+                                          authType: AWSAuthorizationType?,
+                                          connectionProvider: ConnectionProvider,
+                                          completionHandler: @escaping (SubscriptionConnection) -> Void) {
+        // store the connection provider for this api
+        apiToConnectionProvider[MapperCacheKey(apiName: apiName, authType: authType)] = connectionProvider
+        
+        // create a subscription connection for subscribing and unsubscribing on the connection provider
+        let subscriptionConnection = AppSyncSubscriptionConnection(provider: connectionProvider)
+        
+        completionHandler(subscriptionConnection)
     }
 
     // MARK: Private methods

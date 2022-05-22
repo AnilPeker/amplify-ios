@@ -11,10 +11,11 @@ import AppSyncRealTimeClient
 
 /// Protocol for the subscription factory
 protocol SubscriptionConnectionFactory {
-
+    
     /// Get connection based on the connection type
     func getOrCreateConnection(for endpointConfig: AWSAPICategoryPluginConfiguration.EndpointConfig,
                                authService: AWSAuthServiceBehavior,
                                authType: AWSAuthorizationType?,
-                               apiAuthProviderFactory: APIAuthProviderFactory) throws -> SubscriptionConnection
+                               apiAuthProviderFactory: APIAuthProviderFactory,
+                               completionHandler: @escaping (SubscriptionConnection) -> Void) throws
 }

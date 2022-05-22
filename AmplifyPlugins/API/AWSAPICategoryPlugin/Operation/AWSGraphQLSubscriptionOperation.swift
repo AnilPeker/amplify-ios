@@ -96,25 +96,26 @@ final public class AWSGraphQLSubscriptionOperation<R: Decodable>: GraphQLSubscri
         // Retrieve the subscription connection
         subscriptionQueue.sync {
             do {
-                subscriptionConnection = try subscriptionConnectionFactory
-                    .getOrCreateConnection(for: endpointConfig,
-                                              authService: authService,
-                                              authType: pluginOptions?.authType,
-                                              apiAuthProviderFactory: apiAuthProviderFactory)
+                try subscriptionConnectionFactory.getOrCreateConnection(
+                    for: endpointConfig,
+                    authService: authService,
+                    authType: pluginOptions?.authType,
+                    apiAuthProviderFactory: apiAuthProviderFactory
+                ) { [weak self] subscriptionConnection in
+                    guard let self = self else { return }
+                    // Create subscription
+                    self.subscriptionItem = subscriptionConnection.subscribe(requestString: self.request.document,
+                                                                             variables: self.request.variables,
+                                                                             eventHandler: { [weak self] event, _ in
+                        self?.onAsyncSubscriptionEvent(event: event)
+                    })
+                }
             } catch {
                 let error = APIError.operationError("Unable to get connection for api \(endpointConfig.name)", "", error)
                 dispatch(result: .failure(error))
                 finish()
                 return
             }
-
-            // Create subscription
-
-            subscriptionItem = subscriptionConnection?.subscribe(requestString: request.document,
-                                                                 variables: request.variables,
-                                                                 eventHandler: { [weak self] event, _ in
-                self?.onAsyncSubscriptionEvent(event: event)
-            })
         }
     }
 
