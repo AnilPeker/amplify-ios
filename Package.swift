@@ -309,7 +309,7 @@ let package = Package(
         .package(
             name: "AppSyncRealTimeClient",
             url: "https://github.com/aws-amplify/aws-appsync-realtime-client-ios.git",
-            from: "1.9.0"
+            from: "1.10.0"
         ),
         .package(
             name: "AWSSwiftSDK",
