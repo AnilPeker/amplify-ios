@@ -6,8 +6,7 @@
 //
 
 import Amplify
-import AWSClientRuntime
-import AwsCommonRuntimeKit
+import AWSCore
 
 public class AmplifyAWSCredentialsProvider: CredentialsProvider {
 
@@ -52,16 +51,17 @@ public class AmplifyAWSCredentialsProvider: CredentialsProvider {
 }
 
 extension AuthAWSCredentials {
-    
-    func toAWSSDKCredentials() -> AWSCredentials {
-        if let tempCredentials = self as? AuthAWSTemporaryCredentials  {
+    func toAWSCoreCredentials() -> AWSCredentials {
+        if let tempCredentials = self as? AuthAWSTemporaryCredentials {
             return AWSCredentials(accessKey: tempCredentials.accessKey,
-                                  secret: tempCredentials.secretKey,
-                                  expirationTimeout: UInt64(tempCredentials.expiration.timeIntervalSinceNow),
-                                  sessionToken: tempCredentials.sessionKey)
+                                  secretKey: tempCredentials.secretKey,
+                                  sessionKey: tempCredentials.sessionKey,
+                                  expiration: tempCredentials.expiration)
         } else {
-            return AWSCredentials(accessKey: accessKey, secret: secretKey, expirationTimeout: 0)
+            return AWSCredentials(accessKey: accessKey,
+                                  secretKey: secretKey,
+                                  sessionKey: nil,
+                                  expiration: nil)
         }
-        
     }
 }

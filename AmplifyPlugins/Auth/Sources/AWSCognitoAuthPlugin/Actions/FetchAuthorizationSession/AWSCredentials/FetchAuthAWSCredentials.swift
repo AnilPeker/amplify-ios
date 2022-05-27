@@ -16,11 +16,14 @@ struct FetchAuthAWSCredentials: Action {
 
     let cognitoSession: AWSAuthCognitoSession
 
-    func execute(withDispatcher dispatcher: EventDispatcher, environment: Environment) {
+    func execute(withDispatcher dispatcher: EventDispatcher,
+                 environment: Environment)
+    {
         guard let authEnv = environment as? AuthEnvironment,
               let authZEnvironment = authEnv.authorizationEnvironment,
               let client = try? authZEnvironment.cognitoIdentityFactory()
         else {
+
             let authZError = AuthorizationError.configuration(message: AuthPluginErrorConstants.signedInAWSCredentialsWithNoCIDPError.errorDescription)
                   let event = FetchAWSCredentialEvent(eventType: .throwError(authZError))
                   dispatcher.send(event)
@@ -65,21 +68,20 @@ struct FetchAuthAWSCredentials: Action {
 
         let getCredentialsInput = GetCredentialsForIdentityInput(identityId: identityId,
                                                                  logins: loginsMap)
-
-        Task {
-            do {
-                let response = try await client.getCredentialsForIdentity(input: getCredentialsInput)
+        client.getCredentialsForIdentity(input: getCredentialsInput) { result in
+            switch result {
+            case .success(let response):
                 guard let identityId = response.identityId else {
                     let authZError = AuthorizationError.invalidIdentityId(
                         message: "IdentityId is invalid.")
                     let event = FetchAWSCredentialEvent(eventType: .throwError(authZError))
                     dispatcher.send(event)
-                    
+
                     let updatedSession = cognitoSession.copySessionByUpdating(
                         awsCredentialsResult: .failure(authZError.authError))
                     let fetchedAuthSessionEvent = FetchAuthSessionEvent(eventType: .fetchedAuthSession(updatedSession))
                     dispatcher.send(fetchedAuthSessionEvent)
-                    
+
                     logVerbose("\(#fileID) Sending event \(fetchedAuthSessionEvent.type)",
                                environment: environment)
                     return
@@ -90,53 +92,54 @@ struct FetchAuthAWSCredentials: Action {
                       let sessionKey = awsCredentials.sessionToken,
                       let expiration = awsCredentials.expiration
                 else {
-                    let authZError = AuthorizationError.invalidAWSCredentials(
-                        message: "AWSCredentials are invalid.")
-                    let event = FetchAWSCredentialEvent(eventType: .throwError(authZError))
-                    dispatcher.send(event)
-                    
-                    let updatedSession = cognitoSession.copySessionByUpdating(
-                        awsCredentialsResult: .failure(authZError.authError))
-                    let fetchedAuthSessionEvent = FetchAuthSessionEvent(eventType: .fetchedAuthSession(updatedSession))
-                    dispatcher.send(fetchedAuthSessionEvent)
-                    
+                          let authZError = AuthorizationError.invalidAWSCredentials(
+                            message: "AWSCredentials are invalid.")
+                          let event = FetchAWSCredentialEvent(eventType: .throwError(authZError))
+                          dispatcher.send(event)
+
+                          let updatedSession = cognitoSession.copySessionByUpdating(
+                            awsCredentialsResult: .failure(authZError.authError))
+                          let fetchedAuthSessionEvent = FetchAuthSessionEvent(eventType: .fetchedAuthSession(updatedSession))
+                          dispatcher.send(fetchedAuthSessionEvent)
+
                     logVerbose("\(#fileID) Sending event \(fetchedAuthSessionEvent.type)",
                                environment: environment)
-                    return
-                }
+                          return
+                      }
                 let awsCognitoCredentials = AuthAWSCognitoCredentials(
                     accessKey: accessKey,
                     secretKey: secretKey,
                     sessionKey: sessionKey,
                     expiration: expiration
                 )
-                
+
                 let updatedSession = cognitoSession.copySessionByUpdating(
                     identityIdResult: .success(identityId),
                     awsCredentialsResult: .success(awsCognitoCredentials)
                 )
-                
+
                 let fetchedAWSCredentialEvent = FetchAWSCredentialEvent(eventType: .fetched)
                 logVerbose("\(#fileID) Sending event \(fetchedAWSCredentialEvent.type)", environment: environment)
                 dispatcher.send(fetchedAWSCredentialEvent)
-                
+
                 let fetchedAuthSessionEvent = FetchAuthSessionEvent(eventType: .fetchedAuthSession(updatedSession))
                 logVerbose("\(#fileID) Sending event \(fetchedAuthSessionEvent.type)", environment: environment)
                 dispatcher.send(fetchedAuthSessionEvent)
-                
-            } catch {
+
+            case .failure(let error):
                 let sdkError = error as? SdkError<GetCredentialsForIdentityOutputError> ?? SdkError.unknown(error)
-                let authZError = AuthorizationError.service(error: error)
-                let event = FetchAWSCredentialEvent(eventType: .throwError(authZError))
+                let authError = AuthorizationError.service(error: error)
+                let event = FetchAWSCredentialEvent(eventType: .throwError(authError))
                 dispatcher.send(event)
-                
+
                 let updatedSession = cognitoSession.copySessionByUpdating(
-                    awsCredentialsResult: .failure(sdkError.authError))
+                  awsCredentialsResult: .failure(error.authError))
                 let fetchedAuthSessionEvent = FetchAuthSessionEvent(eventType: .fetchedAuthSession(updatedSession))
                 logVerbose("\(#fileID) Sending event \(fetchedAuthSessionEvent.type)", environment: environment)
                 dispatcher.send(fetchedAuthSessionEvent)
             }
         }
+
     }
 }
 

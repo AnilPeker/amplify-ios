@@ -6,28 +6,20 @@
 //
 
 import Foundation
-
-import Amplify
 import AWSS3
-import AWSPluginsCore
-import ClientRuntime
-import AWSClientRuntime
 
-/// The class confirming to AWSS3PreSignedURLBuilderBehavior which uses GetObjectInput to
-/// create a pre-signed URL.
+/// The class confirming to AWSS3PreSignedURLBuilderBehavior which uses an instance of the AWSS3PreSignedURLBuilder to
+/// perform its methods. This class acts as a wrapper to expose AWSS3PreSignedURLBuilder functionality through an
+/// instance over a singleton, and allows for mocking in unit tests. The methods contain no other logic other than
+/// calling the same method using the AWSS3PreSignedURLBuilder instance.
 class AWSS3PreSignedURLBuilderAdapter: AWSS3PreSignedURLBuilderBehavior {
-    let defaultExpiration: Int64 = 50 * 60 // 50 minutes
 
-    let bucket: String
-    let config: AWSClientConfiguration
-    let logger: Logger
+    let preSignedURLBuilder: AWSS3PreSignedURLBuilder
 
     /// Creates a pre-signed URL builder.
-    /// - Parameter credentialsProvider: Credentials Provider.
-    init(config: S3Client.S3ClientConfiguration, bucket: String, logger: Logger = storageLogger) {
-        self.bucket = bucket
-        self.config = config
-        self.logger = logger
+    /// - Parameter preSignedURLBuilder: Builder which can create a pre-signed URL.
+    public init(_ preSignedURLBuilder: AWSS3PreSignedURLBuilder) {
+        self.preSignedURLBuilder = preSignedURLBuilder
     }
 
     /// Gets pre-signed URL.

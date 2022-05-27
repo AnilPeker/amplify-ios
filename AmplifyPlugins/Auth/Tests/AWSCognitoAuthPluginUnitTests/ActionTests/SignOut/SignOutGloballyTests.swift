@@ -8,7 +8,6 @@
 import XCTest
 import AWSCognitoIdentityProvider
 @testable import AWSCognitoAuthPlugin
-@testable import AWSPluginsTestCommon
 
 class SignOutGloballyTests: XCTestCase {
 
@@ -76,7 +75,7 @@ class SignOutGloballyTests: XCTestCase {
         let identityProviderFactory: BasicUserPoolEnvironment.CognitoUserPoolFactory = {
             MockIdentityProvider(
                 globalSignOutCallback: { _, callback in
-                    let response = try! GlobalSignOutOutputResponse(httpResponse: MockHttpResponse.ok)
+                    let response = GlobalSignOutOutputResponse()
                     callback(.success(response))
                 }
             )

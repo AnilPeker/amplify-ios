@@ -41,15 +41,18 @@ extension AWSCognitoAuthPlugin {
 
         let authStateMachine = StateMachine(resolver: authResolver, environment: authEnvironment)
         let credentialStoreMachine = StateMachine(resolver: credentialStoreResolver, environment: credentialEnvironment)
+        let hubEventHandler = AuthHubEventHandler()
 
         configure(authConfiguration: authConfiguration,
                   authStateMachine: authStateMachine,
-                  credentialStoreStateMachine: credentialStoreMachine)
+                  credentialStoreStateMachine: credentialStoreMachine,
+                  hubEventHandler: hubEventHandler)
     }
 
     func configure(authConfiguration: AuthConfiguration,
                    authStateMachine: StateMachine<AuthState, AuthEnvironment>,
                    credentialStoreStateMachine: StateMachine<CredentialStoreState, CredentialEnvironment>,
+                   hubEventHandler: AuthHubEventBehavior,
                    queue: OperationQueue = OperationQueue())
     {
         self.authConfiguration = authConfiguration
@@ -57,6 +60,7 @@ extension AWSCognitoAuthPlugin {
         self.queue.maxConcurrentOperationCount = 1
         self.authStateMachine = authStateMachine
         self.authStateListenerToken = listenToAuthStateChange(authStateMachine)
+        self.hubEventHandler = hubEventHandler
 
         self.credentialStoreStateMachine = credentialStoreStateMachine
         sendConfigureCredentialEvent()
@@ -111,7 +115,7 @@ extension AWSCognitoAuthPlugin {
         }
     }
 
-    func sendConfigureAuthEvent(with storedCredentials: CognitoCredentials?) {
+    func sendConfigureAuthEvent(with storedCredentials: AmplifyCredentials?) {
         authStateMachine.send(AuthEvent(eventType: .configureAuth(authConfiguration, storedCredentials)))
     }
 
@@ -177,8 +181,8 @@ extension AWSCognitoAuthPlugin {
         switch authConfiguration {
         case .userPools(let userPoolConfig), .userPoolsAndIdentityPools(let userPoolConfig, _):
             let configuration = try CognitoIdentityProviderClient.CognitoIdentityProviderClientConfiguration(
-                region: userPoolConfig.region,
-                frameworkMetadata: AmplifyAWSServiceConfiguration.frameworkMetaData()
+                frameworkMetadata: AmplifyAWSServiceConfiguration.frameworkMetaData(),
+                region: userPoolConfig.region)
             )
             return CognitoIdentityProviderClient(config: configuration)
 
@@ -191,8 +195,8 @@ extension AWSCognitoAuthPlugin {
         switch authConfiguration {
         case .identityPools(let identityPoolConfig), .userPoolsAndIdentityPools(_, let identityPoolConfig):
             let configuration = try CognitoIdentityClient.CognitoIdentityClientConfiguration(
-                region: identityPoolConfig.region,
-                frameworkMetadata: AmplifyAWSServiceConfiguration.frameworkMetaData()
+                frameworkMetadata: AmplifyAWSServiceConfiguration.frameworkMetaData(),
+                region: identityPoolConfig.region)
             )
             return CognitoIdentityClient(config: configuration)
         default:

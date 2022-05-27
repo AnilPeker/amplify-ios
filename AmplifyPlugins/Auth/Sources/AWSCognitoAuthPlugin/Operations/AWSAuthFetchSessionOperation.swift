@@ -57,6 +57,20 @@ public class AWSAuthFetchSessionOperation: AmplifyFetchSessionOperation, AuthFet
 
         } onSubscribe: { }
     }
+    
+    func initializeAuthStateMachine(with storedCredentials: AmplifyCredentials?) {
+        
+        authStateMachine.getCurrentState { [weak self] state in
+            guard case .configured = state  else {
+                let message = "Credential store state machine not in idle state: \(state)"
+                let error = AuthError.invalidState(message, "", nil)
+                self?.dispatch(error)
+                return
+            }
+            self?.fetchAuthSession(with: storedCredentials)
+        }
+    }
+
 
     func fetchStoredCredentials() {
 
@@ -66,12 +80,12 @@ public class AWSAuthFetchSessionOperation: AmplifyFetchSessionOperation, AuthFet
 
             switch $0 {
             case .success(let credentials):
-                self.doInitialize(with: credentials)
+                self.initializeAuthStateMachine(with: credentials)
                 if let token = token {
                     self.credentialStoreStateMachine.cancel(listenerToken: token)
                 }
             case .error:
-                self.doInitialize(with: nil)
+                self.initializeAuthStateMachine(with: nil)
                 if let token = token {
                     self.credentialStoreStateMachine.cancel(listenerToken: token)
                 }
@@ -87,31 +101,7 @@ public class AWSAuthFetchSessionOperation: AmplifyFetchSessionOperation, AuthFet
         }
     }
 
-    func doInitialize(with storedCredentials: CognitoCredentials?) {
-        var token: AuthStateMachine.StateChangeListenerToken?
-        token = authStateMachine.listen { [weak self] in
-            guard let self = self else {
-                return
-            }
-            // This is to make sure that the AuthZState is not fetching authSession to
-            // avoid threading issues.
-            guard case .configured(_, let authZState) = $0  else {
-                return
-            }
-            // If still fetchingAuthSession, we will wait
-            if case .fetchingAuthSession = authZState,
-               case .notConfigured = authZState
-            {
-                return
-            }
-            if let token = token {
-                self.authStateMachine.cancel(listenerToken: token)
-            }
-            self.fetchAuthSession(with: storedCredentials)
-        } onSubscribe: { }
-    }
-
-    func fetchAuthSession(with storedCredentials: CognitoCredentials?) {
+    func fetchAuthSession(with storedCredentials: AmplifyCredentials?) {
         var token: AuthStateMachine.StateChangeListenerToken?
         token = authStateMachine.listen { [weak self] in
             guard let self = self else {
@@ -182,12 +172,12 @@ public class AWSAuthFetchSessionOperation: AmplifyFetchSessionOperation, AuthFet
         }
     }
 
-    private func sendStoreCredentialsEvent(with credentials: CognitoCredentials) {
+    private func sendStoreCredentialsEvent(with credentials: AmplifyCredentials) {
         let event = CredentialStoreEvent.init(eventType: .storeCredentials(credentials))
         credentialStoreStateMachine.send(event)
     }
 
-    private func sendFetchAuthSessionEvent(with storedCredentials: CognitoCredentials?) {
+    private func sendFetchAuthSessionEvent(with storedCredentials: AmplifyCredentials?) {
         let event = AuthorizationEvent.init(eventType: .fetchAuthSession(storedCredentials))
         authStateMachine.send(event)
     }

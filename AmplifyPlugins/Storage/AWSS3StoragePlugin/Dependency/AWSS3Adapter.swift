@@ -6,52 +6,29 @@
 //
 
 import Foundation
-
-import Amplify
-
 import AWSS3
-import ClientRuntime
-import AWSClientRuntime
 
 /// The class conforming to AWSS3Behavior which uses an instance of the AWSS3 to perform its methods.
 /// This class acts as a wrapper to expose AWSS3 functionality through an instance over a singleton,
 /// and allows for mocking in unit tests. The methods contain no other logic other than calling the
 /// same method using the AWSS3 instance.
 class AWSS3Adapter: AWSS3Behavior {
-    let awsS3: S3Client
-    let config: AWSClientRuntime.AWSClientConfiguration
-    
-    init(_ awsS3: S3Client, config: AWSClientRuntime.AWSClientConfiguration) {
+    let awsS3: AWSS3
+
+    init(_ awsS3: AWSS3) {
         self.awsS3 = awsS3
-        self.config = config
     }
-    
-    /// Deletes object identify by request.
-    /// - Parameters:
-    ///   - request:: request identifying object
-    ///   - completion: handle indicates when the operation is done
-    func deleteObject(_ request: AWSS3DeleteObjectRequest, completion: @escaping (Result<Void, StorageError>) -> Void) {
-        let input = DeleteObjectInput(bucket: request.bucket, key: request.key)
-        awsS3.deleteObject(input: input) { result in
-            switch(result) {
-            case .success:
-                completion(.success(()))
-            case .failure(let error):
-                completion(.failure(error.storageError))
-            }
-        }
-    }
-    
+
     /// Lists objects in the bucket specified by `request`.
     /// - Parameters:
     ///   - request: request identifying bucket and options
     ///   - completion: handle which return a result with list of items
     func listObjectsV2(_ request: AWSS3ListObjectsV2Request, completion: @escaping (Result<StorageListResult, StorageError>) -> Void) {
-        let input = ListObjectsV2Input(bucket: request.bucket,
+        let input = ListObjectsV2Input(prefix: request.prefix,
+                                       bucket: request.bucket,
                                        continuationToken: request.continuationToken,
                                        delimiter: request.delimiter,
                                        maxKeys: request.maxKeys,
-                                       prefix: request.prefix,
                                        startAfter: request.startAfter)
         awsS3.listObjectsV2(input: input) { result in
             switch(result) {
@@ -87,7 +64,7 @@ class AWSS3Adapter: AWSS3Behavior {
                                                key: request.key,
                                                metadata: request.metadata)
         
-        awsS3.createMultipartUpload(input: input) { result in
+        awsS3.createMultipartUpload(config: config, input: input) { result in
             switch result {
             case .success(let response):
                 guard let bucket = response.bucket, let key = response.key, let uploadId = response.uploadId else {
@@ -101,20 +78,11 @@ class AWSS3Adapter: AWSS3Behavior {
         }
     }
 
-    func listParts(bucket: String, key: String, uploadId: UploadID, completion: @escaping (Result<AWSS3ListUploadPartResponse, StorageError>) -> Void) {
-        let input = ListPartsInput(bucket: bucket, key: key, uploadId: uploadId)
-        awsS3.listParts(input: input) { result in
-            switch result {
-            case .success(let sdkResponse):
-                guard let response = AWSS3ListUploadPartResponse(response: sdkResponse) else {
-                    completion(.failure(StorageError.unknown("ListParts response is invalid", nil)))
-                    return
-                }
-                completion(.success(response))
-            case .failure(let error):
-                completion(.failure(error.storageError))
-            }
-        }
+    /// Deletes object identify by request.
+    /// - Parameter request: request identifying object
+    /// - Returns: task
+    public func deleteObject(_ request: AWSS3DeleteObjectRequest) -> AWSTask<AWSS3DeleteObjectOutput> {
+        return awsS3.deleteObject(request)
     }
     
     /// Completed a MultipartUpload
@@ -127,7 +95,7 @@ class AWSS3Adapter: AWSS3Behavior {
         }
         let completedMultipartUpload = S3ClientTypes.CompletedMultipartUpload(parts: parts)
         let input = CompleteMultipartUploadInput(bucket: request.bucket, key: request.key, multipartUpload: completedMultipartUpload, uploadId: request.uploadId)
-        awsS3.completeMultipartUpload(input: input) { result in
+        awsS3.completeMultipartUpload(config: config, input: input) { result in
             switch result {
             case .success(let response):
                 guard let eTag = response.eTag else {
@@ -159,7 +127,7 @@ class AWSS3Adapter: AWSS3Behavior {
     
     /// Instance of S3 service.
     /// - Returns: S3 service instance.
-    func getS3() -> S3Client {
+    public func getS3() -> AWSS3 {
         return awsS3
     }
 }

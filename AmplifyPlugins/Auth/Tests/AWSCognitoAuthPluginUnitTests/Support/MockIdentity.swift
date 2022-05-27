@@ -10,6 +10,7 @@ import AWSCognitoIdentity
 import ClientRuntime
 
 struct MockIdentity: CognitoIdentityBehavior {
+
     typealias GetIdCallback = (
         GetIdInput,
         (SdkResult<GetIdOutputResponse, GetIdOutputError>) -> Void
