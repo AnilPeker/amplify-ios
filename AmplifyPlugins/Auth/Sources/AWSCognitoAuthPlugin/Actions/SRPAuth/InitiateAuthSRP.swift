@@ -96,10 +96,10 @@ struct InitiateAuthSRP: Action {
 
     private func sendRequest(request: InitiateAuthInput,
                      environment: SRPAuthEnvironment,
-                     srpStateData: SRPStateData,
-                     callback: @escaping (SRPSignInEvent) -> Void) throws
+                             srpStateData: SRPStateData,
+                             callback: @escaping (SRPSignInEvent) -> Void) throws
     {
-
+        
         let cognitoClient = try environment.cognitoUserPoolFactory()
         logVerbose("\(#fileID) Starting execution", environment: environment)
         
@@ -107,10 +107,8 @@ struct InitiateAuthSRP: Action {
             let event: SRPSignInEvent!
             do {
                 let response = try await cognitoClient.initiateAuth(input: request)
-                event = SRPSignInEvent(
                 logVerbose("\(#fileID) InitiateAuth response success", environment: environment)
                 event = SRPSignInEvent(eventType: .respondPasswordVerifier(srpStateData, response))
-                )
             } catch {
                 let authError = SRPSignInError.service(error: error)
                 event = SRPSignInEvent(eventType: .throwAuthError(authError))
@@ -143,3 +141,4 @@ extension InitiateAuthSRP: CustomDebugStringConvertible {
         debugDictionary.debugDescription
     }
 }
+

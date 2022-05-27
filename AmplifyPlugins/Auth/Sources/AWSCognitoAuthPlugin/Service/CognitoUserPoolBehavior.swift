@@ -29,3 +29,4 @@ protocol CognitoUserPoolBehavior {
     /// Throws RevokeTokenOutputError
     func revokeToken(input: RevokeTokenInput) async throws -> RevokeTokenOutputResponse
 }
+
